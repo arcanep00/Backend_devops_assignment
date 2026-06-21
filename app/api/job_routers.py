@@ -9,6 +9,9 @@ from app.services.job_service import create_job
 from app.schemas.job import JobUploadResponse
 import uuid
 import os
+from app.workers.tasks import process_csv_job
+from app.schemas.job_status import JobStatusResponse
+from app.services.job_service import get_job_by_id
 
 router = APIRouter()
 
@@ -35,6 +38,26 @@ async def upload_csv(file:UploadFile = File(...),db: Session = Depends(get_db)):
         buffer.write(content)
 
     job = create_job(db=db, filename=unique_name,file_path=file_path)
+    process_csv_job.delay(job.id)
+
+    return {
+        "job_id": job.id,
+        "status": job.status
+    }
+
+@router.get(
+    "/{job_id}/status",
+    response_model=JobStatusResponse
+)
+def get_status(
+    job_id: int,
+    db: Session = Depends(get_db)
+):
+
+    job = get_job_by_id(
+        db,
+        job_id
+    )
 
     return {
         "job_id": job.id,
